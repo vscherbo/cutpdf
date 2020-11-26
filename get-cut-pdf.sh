@@ -31,9 +31,9 @@ ARCHIVE_DEPTH=10
 find $PDF_ARCH -type f -mtime +$ARCHIVE_DEPTH -delete # -exec rm -f {} \+
 find $LOG_DIR -type f -mtime +$ARCHIVE_DEPTH -delete # -exec rm -f {} \+
 
-LOG=$LOG_DIR/$DT-`namename $0`.log
+SCRIPT_NAME=$(namename $0)
+LOG=$LOG_DIR/$DT-$SCRIPT_NAME.log
 exec 1>>$LOG 2>&1
-
 
 if [ $DO_FETCH = 'YES' ]
 then
@@ -56,25 +56,30 @@ then
     esac
 
     find $PDF_DIR -type f -name 'smime*.p7s' -delete
-    find $PDF_DIR -type f -name 'cutpdf*' -size 0c -delete
+    #find $PDF_DIR -type f -name 'cutpdf*' -size 0c -delete
+    find $PDF_DIR -type f -name 'cutpdf*' -delete
 
     # clean logs without mail
-    grep -l 'There was no mail' $LOG_DIR/* |xargs --no-run-if-empty rm
+    #grep -l 'There was no mail' $LOG_DIR/* |xargs --no-run-if-empty rm
     
     if [ $exit_rc -ne 1 ]
     then
+       echo Nothing to do. Exiting.
        exit $exit_rc
     fi
 fi # DO_FETCH
 
 pushd $PDF_DIR
 
-./loop-doc.sh
+for doc in $(ls -1 ___*pdf)
+do
+    sh ./cut-pdf.sh $doc
+done
 
 
 
-/usr/sbin/logrotate --state cutpdf.state cutpdf.conf
-cat $LOG >> $LOG_DIR/cutpdf.log
+/usr/sbin/logrotate --state rotate-$SCRIPT_NAME.state rotate-$SCRIPT_NAME.conf
+cat $LOG >> $LOG_DIR/$SCRIPT_NAME.log
 
 popd
 
