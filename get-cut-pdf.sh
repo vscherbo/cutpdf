@@ -13,10 +13,11 @@ DO=''
 #1. received email are processed by procmail and ripmime
 # result is the csv file in directory specified with .procmailrc 
 # i.e.  ripmime -i - -d /path/to/mailbox 
-PDF_DIR=$(grep cutpdf ~/.procmailrc | awk -F '-d' '{print $2}' | awk '{print $1}')
+PDF_DIR=$(grep cutpdf ~/.procmailrc |egrep -v '^#' | awk -F '-d' '{print $2}' | awk '{print $1}')
 [ +$PDF_DIR = + ] && { echo PDF_DIR unassigned, exiting; exit 123; }
 LOG_DIR=$PDF_DIR/logs
 PDF_DATA=$PDF_DIR/01-data
+PDF_FAILED=$PDF_DIR/98-failed
 PDF_ARCH=$PDF_DIR/99-archive
 ARCHIVE_DEPTH=10
 
@@ -26,6 +27,7 @@ ARCHIVE_DEPTH=10
 [ -d $PDF_DIR ] || mkdir -p $PDF_DIR
 [ -d $LOG_DIR ] || mkdir -p $LOG_DIR
 [ -d $PDF_DATA ] || mkdir -p $PDF_DATA
+[ -d $PDF_FAILED ] || mkdir -p $PDF_FAILED
 [ -d $PDF_ARCH ] || mkdir -p $PDF_ARCH
 
 find $PDF_ARCH -type f -mtime +$ARCHIVE_DEPTH -delete # -exec rm -f {} \+
@@ -60,23 +62,43 @@ then
     find $PDF_DIR -type f -name 'cutpdf*' -delete
 
     # clean logs without mail
-    #grep -l 'There was no mail' $LOG_DIR/* |xargs --no-run-if-empty rm
+    grep -l 'There was no mail' $LOG_DIR/* |xargs --no-run-if-empty rm
     
     if [ $exit_rc -ne 1 ]
     then
-       echo Nothing to do. Exiting.
+       logmsg INFO 'Nothing to do. Exiting.'
        exit $exit_rc
     fi
 fi # DO_FETCH
 
 pushd $PDF_DIR
 
-for doc in $(ls -1 ___*pdf)
+PDF_TO=vscherbo@kipspb.ru
+
+#for doc in $(ls -1 *.pdf)
+for doc in $(ls -1 Накладн*)
 do
-    sh ./cut-pdf.sh $doc
+    PDF_NAME=$(namename $doc)
+    CUT_DIR=cut-$PDF_NAME
+    [ -d $CUT_DIR ] || mkdir $CUT_DIR
+    pushd $CUT_DIR
+    sh $PDF_DIR/cut-pdf.sh ../$doc
+    unset ATTACH
+    for pdf in $(ls -1 *.pdf)
+    do 
+        ATTACH=${ATTACH}" -a $pdf"
+    done
+    mailx -s "$PDF_NAME" -r cut-pdf@kipspb.ru $ATTACH $PDF_TO < /dev/null
+    mv -f *.pdf $PDF_ARCH/
+    popd
+    mv -f $doc $PDF_DATA/
+    logmsg INFO "rmdir $CUT_DIR"
+    rmdir $CUT_DIR 2>/dev/null
+    if [ $? -ne 0 ]
+    then
+        mv $CUT_DIR $PDF_FAILED
+    fi
 done
-
-
 
 /usr/sbin/logrotate --state rotate-$SCRIPT_NAME.state rotate-$SCRIPT_NAME.conf
 cat $LOG >> $LOG_DIR/$SCRIPT_NAME.log
