@@ -73,11 +73,15 @@ fi # DO_FETCH
 
 pushd $PDF_DIR
 
-PDF_TO=vscherbo@kipspb.ru
+PDF_TO=blazhevskaya@kipspb.ru
+#PDF_TO=blazhevskaya@kipspb.ru,vscherbo@kipspb.ru
+#PDF_TO=vscherbo@kipspb.ru
 
-#for doc in $(ls -1 *.pdf)
 for doc in $(ls -1 Накладн*)
 do
+    good_name=${doc%_*}
+    mv $doc $good_name
+    doc=$good_name
     PDF_NAME=$(namename $doc)
     CUT_DIR=cut-$PDF_NAME
     [ -d $CUT_DIR ] || mkdir $CUT_DIR
